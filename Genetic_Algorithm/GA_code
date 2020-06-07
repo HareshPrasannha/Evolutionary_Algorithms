@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jan 24 15:05:02 2020
+
+@author: abhishekhegde
+"""
+
+import numpy as np
+import random
+from random import randint
+import copy
+import pandas as pd
+
+
+#weights = np.array([442,252,252,252,252,252,252,252,127,127,127,127,127,106,106,106,106,85,84,37,37,12,12,12,10,10,10,10,10,10,9,9])
+#Reading dataset
+x = pd.read_csv('u250_00.csv',header=None)
+weights = np.array(x)
+
+mutation_per = 0.30
+genenration_index = 100
+crossover_per = 0.45
+parent_pop = 50
+alpha = [str(x) for x in range(200 + 1)]
+w_index = list(range(len(weights)))
+capacity = 150
+
+
+class chromosome:
+    # items , Group , Fitness , bin
+    # [A,A,B,B,C,D]
+    bin_w =[]
+
+    def bin_num(self):
+        self.bin = len(self.items)
+    def fitness_func(self):
+        sum = 0
+        for i in range(self.bin):
+            sum = sum + (np.sum(weights[self.items[i]])/ capacity) ** 2
+            self.Fitness = sum/self.bin
+
+    def bin_w_func(self):
+        self.bin_w =[]
+        for i in range(len(self.items)):
+            temp =[weights[x] for x in self.items[i]]
+            self.bin_w.append(np.sum(temp))
+
+################## Initialisation ########################
+a=[]
+parents = 0
+while(parents<parent_pop):
+    w_count = 0
+    random.shuffle(w_index)
+    for i in range(len(weights)):
+          if (i == 0):
+              a.append(chromosome())
+              a[parents].items = [[w_index[i]]]
+              reminder = capacity - weights[w_index[i]]
+              a[parents].group = [alpha[w_count]]
+
+          else:
+              if(reminder >= weights[w_index[i]]):
+                 a[parents].items[w_count].append(w_index[i])
+                 reminder = reminder - weights[w_index[i]]
+              else:
+                  w_count = w_count + 1
+                  a[parents].group.append(alpha[w_count])
+                  a[parents].items.append([w_index[i]])
+                  reminder = capacity - weights[w_index[i]]
+
+    a[parents].bin = len(a[parents].items)
+    a[parents].fitness_func()
+    parents=parents+1
+
+for i in range(parent_pop):
+
+    a[i].bin_w_func()
+
+generation = 0
+while(generation< genenration_index):
+    #################### Crossover #################################
+    ##cloning the parents###
+    #offspring=[]
+    offspring = copy.deepcopy(a)
+    #print("\n")
+    for i in range(parent_pop):
+        #print("Parent[",i,"]:", offspring[i].items)
+        offspring[i].bin_w_func()
+
+    parent_pair = 0
+    while(parent_pair < parent_pop):
+        par_a = parent_pair
+        par_b =parent_pair + 1
+        crossover = round(crossover_per * len(offspring[par_a].items))
+        x = random.sample(range(0,len(offspring[par_a].items)-1),2)
+        y = random.sample(range(0,len(offspring[par_b].items)-1),2)
+        x.sort()
+        y.sort()
+        cp_a = x[0]
+        cp_b = y[0]
+        if(cp_a + crossover  >= len(offspring[par_a].items)-1):
+            end_cp_a = cp_a - crossover
+            cp_a,end_cp_a = end_cp_a,cp_a
+        else:
+            end_cp_a = cp_a + crossover
+        if(cp_b + crossover  >= len(offspring[par_b].items)-1):
+            end_cp_b = cp_b - crossover
+            cp_b,end_cp_b = end_cp_b,cp_b
+        else:
+            end_cp_b = cp_b + crossover
+
+        #print(cp_a,end_cp_a,cp_b,end_cp_b)
+#
+#        end_cp_a = x[1]
+#        end_cp_b = y[1]
+        w = cp_b
+        for i in range(cp_a,end_cp_a):
+            c_gene_1 = offspring[par_a].items[i][:]
+            if(i == cp_a):
+                temp_off_b = copy.deepcopy(offspring[par_b].items)
+            offspring[par_b].items.insert(w,c_gene_1[:])
+            w = w+1
+        w = cp_a
+        for j in range(cp_b,end_cp_b):
+            c_gene_2 = temp_off_b[j][:]
+            offspring[par_a].items.insert(w,c_gene_2[:])
+            w=w+1
+
+        #################### queue generation( for A )  and modified chromo  ###############
+
+        #print("\n")
+        child_count = 0
+        while (child_count < 2):
+            queue = []
+            pop_id = []
+            for i in range(len(offspring[par_a].items)):
+                uni = [ item for elem in (offspring[par_a].items[cp_a:cp_a+(end_cp_b-cp_b)]) for item in elem]
+                if((i < cp_a or i>(cp_a+(end_cp_b-cp_b-1))) and (np.intersect1d(uni ,offspring[par_a].items[i]).size) >0):
+                    #print("index:  ",i)#,"Intersection:",np.intersect1d(offspring[par_a].items[cp_a],offspring[par_a].items[i]))
+        #            print("Set_diff:  ",list(set(offspring[par_a].items[i])-set(np.intersect1d(offspring[par_a].items[cp_a],offspring[par_a].items[i]))))
+                    queue.append(list(set(offspring[par_a].items[i])-set(np.intersect1d(uni,offspring[par_a].items[i]))))
+                    #offspring[0].items.pop(i)
+                    pop_id.append(i)
+        #        print("Queue:",queue,"Pop_id:",pop_id)
+            queue = [ item for elem in queue for item in elem]
+
+            #print(pop_id)
+
+            new_chromo = list(set(range(0,len(offspring[par_a].items)))-set(pop_id))
+        #    print("\nmodified_off_a:",new_chromo)
+            offspring[par_a].items =[offspring[par_a].items[x] for x in new_chromo]
+
+            offspring[par_a].bin_w_func()
+
+            queue.sort(reverse = True)
+
+            ###################refilling the bins ########################################
+
+        #    print("\n")
+            #temp = offspring[0].items
+            for i in range(len(queue)):
+                flag = 1
+                for j in range(len(offspring[par_a].bin_w)):
+            #        print("j: ",j)
+                    if(weights[queue[i]] <= capacity - offspring[par_a].bin_w[j]):
+            #            temp[j].append(queue[i])
+                        offspring[par_a].items[j].extend([queue[i]])
+        #                print("Append_items : ",offspring[par_a].items )
+        #                print("Offspring_b: ",offspring[par_b].items)
+                        offspring[par_a].bin_w_func()
+        #                print(offspring[par_a].bin_w)
+                        flag = 0
+                        break
+
+                if(j == len(offspring[par_a].bin_w)-1 and flag == 1):
+                    offspring[par_a].items.append([queue[i]])
+                    offspring[par_a].bin_w_func()
+
+           # print('Child_chrom[',child_count+parent_pair,']:',offspring[par_a].items)
+            offspring[par_a].bin_w_func()
+           # print('Child_chrom_weight[',offspring[par_a].bin_w)
+            par_a = par_b
+
+            temp = cp_a
+            cp_a = cp_b
+            cp_b = temp
+            temp1 = end_cp_a
+            end_cp_a = end_cp_b
+            end_cp_b = temp1
+            offspring[par_a].bin = len(offspring[par_a].bin_w)
+           # print("No.of bins",offspring[par_a].bin)
+            child_count = child_count+1
+        parent_pair = parent_pair + 2
+
+
+    ###########################Mutation###########################################
+
+
+    ##########################Discard and Queuing#################################
+    mut_offspring = 0
+    while(mut_offspring<parent_pop):
+        queue_mutation = []
+        Mut_num = round(offspring[mut_offspring].bin * mutation_per)
+        discard = []
+        discard =random.sample(range(0,len(offspring[mut_offspring].items)),Mut_num)
+        discard.sort()
+        #print("\npop_idx:",discard)
+        #print("offspring_before_mut: ", offspring[mut_offspring].items)
+        #print("offspring_wgt_before_mut: ",offspring[mut_offspring].bin_w)
+        for i in range(0,len(discard)):
+            queue_mutation.append(offspring[mut_offspring].items.pop(discard[i]))
+            offspring[mut_offspring].bin_w_func()
+            #print("off : ", offspring[mut_offspring].items)
+            if(i != len(discard)-1):
+                discard[i+1] = discard[i+1] - ((i+1))
+
+        #print("weight: " ,offspring[mut_offspring].bin_w)
+
+        queue_mutation = [ item for elem in queue_mutation for item in elem]
+
+        queue_mutation.sort(reverse=True)
+        #print("queue mutation",queue_mutation)
+
+        ############################# Reinserting ####################################
+
+        for i in range(len(queue_mutation)):
+            flag = 1
+            for j in range(len(offspring[mut_offspring].bin_w)):
+        #        print("j: ",j)
+                if(weights[queue_mutation[i]] <= capacity - offspring[mut_offspring].bin_w[j]):
+        #            temp[j].append(queue[i])
+                    offspring[mut_offspring].items[j].extend([queue_mutation[i]])
+        #                print("Append_items : ",offspring[par_a].items )
+        #                print("Offspring_b: ",offspring[par_b].items)
+                    offspring[mut_offspring].bin_w_func()
+        #                print(offspring[par_a].bin_w)
+                    flag = 0
+                    break
+
+            if(j == len(offspring[mut_offspring].bin_w)-1 and flag == 1):
+                offspring[mut_offspring].items.append([queue_mutation[i]])
+                offspring[mut_offspring].bin_w_func()
+
+        #print('Child_chrom[',mut_offspring,']:',offspring[mut_offspring].items)
+        offspring[mut_offspring].bin_w_func()
+        #print('Child_chrom_weight[',mut_offspring,']:',offspring[mut_offspring].bin_w)
+        mut_offspring = mut_offspring + 1
+
+    ###################################################################################
+
+    temp_gen_arr = copy.deepcopy(offspring + a)
+    temp_fitness = []
+    for i in range(len(temp_gen_arr)):
+        temp_gen_arr[i].bin_w_func()
+        temp_gen_arr[i].bin_num()
+        temp_gen_arr[i].fitness_func()
+        temp_fitness.append(temp_gen_arr[i].Fitness)
+
+    #    print("bin_num: " , temp_gen_arr[i].bin)
+    #    print("bin_num: " , temp_gen_arr[i].bin_w)
+    temp_index = np.argsort(temp_fitness)[::-1][:len(temp_fitness)]
+   # print(a)
+    a = copy.deepcopy([temp_gen_arr[x] for x in temp_index[0:(parent_pop+1)]])
+    #print("\n",a)
+#    for i in range(10):
+#        print(temp_gen_arr[i].bin)
+#
+    generation = generation + 1
+
+#print(temp_fitness[0])
+#print(temp_gen_arr[temp_index[0]].items)
+temp_gen_arr[temp_index[0]].bin_num()
+print(temp_gen_arr[temp_index[0]].bin)
+print(temp_gen_arr[temp_index[0]].items)
+print(temp_fitness[0])
