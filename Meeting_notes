@@ -1,0 +1,8 @@
+1.try to make use of all the
+ instances of u250 dataset.
+2.Elitism strategy for GA
+3.Way of storing the pheromone matrix in ACO
+4.Particle or solution representation
+in each of the algorithm
+5. exploration and exploitation and parameters with the descritption
+of the parameters

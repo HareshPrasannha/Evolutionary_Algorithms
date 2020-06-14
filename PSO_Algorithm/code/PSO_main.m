@@ -5,22 +5,21 @@ close all;
 
 %% Problem Definition
 
-model = CreateModel();  % Bin Packing Problem initialisation (Set the path of the input dataset properly in the function "create model appropiately"
+model = CreateModel();  % Bin Packing Problem initialisation (Set the path of the input dataset properly in the function "create model" appropiately
 
 CostFunction = @(x) BinpackFitness_BF(x, model);  % Fitness Function
 
-nVar = model.n;%2*model.n-1;     % Number of Decision Variables
-VarSize = [1 nVar];     % Decision Variables Matrix Size
+nVar = model.n;          % No of decision variables
+VarSize = [1 nVar];      % Dimesion of Prticles
 
 VarMin = 0;     % Lower Bound of Decision Variables
 VarMax = 1;     % Upper Bound of Decision Variables
 
-
 %% PSO Parameters
 
-MaxIt=1000;      % Maximum Number of Iterations
+MaxIt=1000;      % No of Iterations
 
-nPop=10;        % Population Size (Swarm Size)
+nPop=10;        % Swarm Size (No of particles in swarm)
 
 % % PSO Parameters
 % w=1;            % Inertia Weight
@@ -42,8 +41,8 @@ c2=chi*phi2;    % Global Learning Coefficient
 VelMax=0.2*(VarMax-VarMin);
 VelMin=-VelMax;
 
-nParticleMutation = 8;%2      % Number of Mutations Performed on Each Particle
-nGlobalBestMutation = 15;%5    % Number of Mutations Performed on Global Best
+nParticleMutation = 8;       % Number of Mutations Performed on Each Particle
+nGlobalBestMutation = 15;    % Number of Mutations Performed on Global Best
 
 %% Initialization
 
@@ -67,7 +66,7 @@ for i=1:nPop
     % Initialize Velocity
     particle(i).Velocity=zeros(VarSize);
     
-    % Evaluation
+    % Fitness Estimation
     [particle(i).Cost, particle(i).Sol]=CostFunction(particle(i).Position);
     
     % Update Personal Best
@@ -84,6 +83,7 @@ end
 
 BestCost=zeros(MaxIt,1);
 OptimalBins=zeros(MaxIt,1);
+
 %% PSO Main Loop
 
 for it=1:MaxIt
@@ -110,7 +110,7 @@ for it=1:MaxIt
         particle(i).Position = max(particle(i).Position,VarMin);
         particle(i).Position = min(particle(i).Position,VarMax);
         
-        % Evaluation
+        % Fitness Estimation
         [particle(i).Cost, particle(i).Sol] = CostFunction(particle(i).Position);
         
         % Perform Mutation
@@ -150,17 +150,20 @@ for it=1:MaxIt
     end
     
     
-    BestCost(it)=GlobalBest.Cost;
-    OptimalBins(it)=GlobalBest.Sol.nBin;
+    BestCost(it)=GlobalBest.Cost;       %% Storing global best fitness value
+    OptimalBins(it)=GlobalBest.Sol.nBin;%% Storing global best bin pack solution
     
     
     disp(['Iteration ' num2str(it) ': Best Cost = ' num2str(BestCost(it)) '  No of Bins = ' num2str(GlobalBest.Sol.nBin)]);
     
-    w=w*wdamp;
+    w=w*wdamp;      %% Updating inertia weight factor
     
 end
 
 BestSol = GlobalBest;
+
+writematrix(OptimalBins, "No.of_bins_Result.csv");
+writematrix(BestCost, "Fitness_Result.csv");
 
 %% Results
 

@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Feb  1 18:41:42 2020
+@author: abhishekhegde
+"""
+
+from itertools import combinations 
+from scipy import sparse
+import numpy as np
+import random
+from random import randint
+import copy
+import binpacking
+import pandas as pd
+
+### Bin packing problem parameters ###
+x = pd.read_csv('u250_00.csv',header=None)
+#x = [442,252,252,252,252,252,252,252,127,127,127,127,127,106,106,106,106,85,84,46,37,37,12,12,12,10,10,10,10,10,10,9,9]
+weight = np.uint64(np.array(x))
+n=len(weight)
+capacity = 150
+
+### Ant colony algorithm parameters ###
+iteration = 1000
+ant_num = 10
+beta = 6
+rou = 0.95
+rot = 0
+fit_k= 2
+
+
+df = pd.DataFrame([])
+def Rwheel(prob,i=1):
+    x=np.random.choice(len(prob), i,replace=False,p=prob)
+    if(i==1):
+        return x[0]
+    else:
+        
+        return x
+
+def check_inter(x):
+    if(len(x)==2):
+        return 1
+    else:
+        return 0
+
+def array_row_intersection(a,b):
+   tmp=np.prod(np.swapaxes(a[:,:,None],1,2)==b,axis=2)
+   return a[np.sum(np.cumsum(tmp,axis=0)*tmp==1,axis=1).astype(bool)]
+
+
+############# Define min tau ################################
+min_tau = 1/ (1 - rou)
+
+############# Pheromone matrix initialisation #################################
+ph_mat = pd.DataFrame(min_tau,columns=np.unique(x), index=np.unique(x))
+
+############# Define ant properties ############################
+class ant_class:
+
+   # ANT LIST , FITNESS , PBEST , bins
+    def fitness_func(self):
+        sum = 0
+        for i in range(len(self.items)):
+            sum = sum + (np.sum(weight[self.items[i]])/ capacity) ** fit_k
+            self.Fitness = sum/len(self.items)
+
+    def weight(self):
+        self.bin_w =[]
+        for i in range(len(self.items)):
+            temp =[weight[x] for x in self.items[i]]
+            self.bin_w.append(np.sum(temp))
+
+############################ Main ###########################################
+            
+ant = ant_class()
+w = np.array(weight)
+time =0
+Gbest = 0;
+while(time < iteration):
+    Pbest = 0;
+    for i in range(ant_num):
+        rand_post = random.randint(0,len(weight)-1)
+        unvisit_wt = list(range(len(weight)))
+        #print(rand_post)
+        
+        ###### Each ant computing one complete solution to the bin packing problem ######
+        ant.items = [[rand_post]]
+        ant.weight()
+        #print(ant.bin_w)
+        bin_count = 0
+        unvisit_wt.remove(rand_post)
+        for uv_id in range(len(weight)-1):
+            remaining = capacity - ant.bin_w[bin_count]
+            subspace = [unvisit_wt[i] for i in range(len(unvisit_wt)) if (weight[unvisit_wt[i]] <= remaining)]
+            if(len(subspace) == 0):
+                bin_count = bin_count+1
+                ant.items.append([])
+                remaining = capacity
+                subspace = [unvisit_wt[i] for i in range(len(unvisit_wt)) if (weight[unvisit_wt[i]] <= remaining)]
+            num_sum = []
+            
+            denom_sum = 0
+            for sub_i in range(len(subspace)):
+                temp_num_sum = 0
+                if(len(ant.items[bin_count]) != 0):
+                    for j in (ant.items[bin_count]):
+                        temp = [subspace[sub_i],j]
+                        temp_w = weight[temp]                       
+                        temp_w.sort()                        
+                        temp_num_sum = temp_num_sum + ph_mat.at[int(temp_w[0]),int(temp_w[1])]                   
+#                    print(temp_num_sum)
+#                    print(weight[subspace[sub_i]])
+                    num_sum.append((temp_num_sum/len(ant.items[bin_count]))*((weight[subspace[sub_i]])**beta))
+                    denom_sum = denom_sum + num_sum[sub_i]
+                else:
+                    num_sum.append(1*(weight[subspace[sub_i]]**beta))
+                    denom_sum = denom_sum + num_sum[sub_i]
+            #print(num_sum,denom_sum)    
+            num_sum = [ float(i) for i in num_sum ]
+            denom_sum = sum(num_sum)
+#            prob_fill = np.divide(num_sum,np.sum(num_sum))
+            prob_fill = list((map(lambda x: x/denom_sum,num_sum)))
+            
+            fill_index = Rwheel(prob_fill)
+            #fill_index = np.argmax(prob_fill)                        
+            ant.items[bin_count].append(subspace[fill_index])
+            
+            ant.weight()
+            unvisit_wt.remove(subspace[fill_index])
+         
+        #print(ant.items)
+        ant.fitness_func()
+        #print(ant.Fitness)
+        
+        ## Computing the personal best solution of the individual ants
+        if(ant.Fitness > Pbest):
+           # print(time)
+            Pbest = copy.deepcopy(ant.Fitness)
+           # print(Pbest)
+            Pbest_items = copy.deepcopy(ant.items)
+    #        print(ant.items)
+    
+    ## Computing the global best solution
+    if(Pbest>Gbest):
+        #print("Gbest" , time)
+        Gbest = copy.deepcopy(Pbest)
+        Gbest_items = copy.deepcopy(Pbest_items)
+
+############################## Updation of Pheromine at the end of one iteration ################################################
+    
+    if(rot<500/n):
+        fit_g = Pbest
+        rot = rot+1
+        d = Pbest_items 
+    else:
+        fit_g = Gbest
+        rot = 0
+        d = Gbest_items
+    
+    ph_mat.loc[:,:]= ph_mat.loc[:,:]*(rou)
+    x_comb = []
+    
+    for i in range(len(d)):
+        y_comb = copy.deepcopy(x_comb)
+        for j in range(i,len(d)):
+            comb = combinations(weight[d[i]], 2)
+            for k in comb:  
+                inter = np.intersect1d(k,weight[d[j]])
+#                print(k)
+                if(len(inter)==2):
+                    if(len(inter)==2):               
+                        if(k not in y_comb):
+                            k_s = np.array([int(k[0]),int(k[1])])
+                            k_s.sort()
+                          #  print(k_s)
+                           # print("Before", ph_mat.loc[k_s[0],k_s[1]])
+                            ph_mat.loc[k_s[0],k_s[1]] = ph_mat.loc[k_s[0],k_s[1]] + (1*fit_g) 
+                           # print("After",ph_mat.loc[k_s[0],k_s[1]])
+                            x_comb.append(k)
+    t_min = min_tau * (1-(0.05**1/n))/(((n/2)-1)*(1-(0.05**1/n)))
+    # print(t_min)
+    ph_mat[ph_mat < t_min]= t_min
+
+   
+    ### Displaying the results
+    df = df.append([{'Iteration':time,'P_Bins':len(Pbest_items),'Person_Fitness':round(Pbest,4),'G_Bins':len(Gbest_items),'Global_Fitness':round(Gbest,4)}],ignore_index=True)
+    time = time + 1
+    print('Gen:',time)
+    print(len(Pbest_items))
+    print(len(Gbest_items))
+    
+### Logging of the results to excel file
+with pd.ExcelWriter('ACO.xlsx') as writer:
+    df.to_excel(writer,'ACO')    
