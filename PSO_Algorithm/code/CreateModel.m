@@ -4,6 +4,6 @@ function model = CreateModel()
     
     model.n = numel(model.v);           %% total no of items
     
-    model.Vmax = 100;                   %% Max capacity of the bin
+    model.Vmax = 150;                   %% Max capacity of the bin
 
 end
